@@ -8,7 +8,11 @@ public class ShowInfoCard : MonoBehaviour
 
     [Header("Objet Posidonie à cacher pendant l'affichage")]
     [SerializeField]
-    private GameObject posidoniaObject; // <-- assign the posidonia GameObject here in the Inspector
+    private GameObject posidoniaObject;
+
+    [Header("Indicateur (Particle System) à cacher pendant l'affichage")]
+    [SerializeField]
+    private ParticleSystem indicatorParticles; // <-- drag your Particle System here
 
     [Header("Billboard (optionnel)")]
     [SerializeField]
@@ -19,21 +23,45 @@ public class ShowInfoCard : MonoBehaviour
     [SerializeField]
     private Button closeButton;
 
+    [Header("Fermeture automatique (optionnel)")]
+    [SerializeField]
+    private bool autoCloseEnabled = true;
+    [SerializeField]
+    private float autoCloseDelay = 8f; // seconds
+    private float autoCloseTimer;
+
+    private Renderer[] posidoniaRenderers;
+    private Collider[] posidoniaColliders;
+    private Rigidbody posidoniaRigidbody;
+    private Vector3 originalPosition;
+    private Quaternion originalRotation;
+
     void Start()
     {
-        Debug.Log("ShowInfoCard script charge et pret sur : " + gameObject.name);
-        if (Camera.main != null)
+        if (Camera.main != null) cam = Camera.main.transform;
+        if (infoCard != null) infoCard.SetActive(false);
+        if (closeButton != null) closeButton.onClick.AddListener(Hide);
+
+        if (posidoniaObject != null)
         {
-            cam = Camera.main.transform;
+            posidoniaRenderers = posidoniaObject.GetComponentsInChildren<Renderer>(true);
+            posidoniaColliders = posidoniaObject.GetComponentsInChildren<Collider>(true);
+            posidoniaRigidbody = posidoniaObject.GetComponent<Rigidbody>();
+            originalPosition = posidoniaObject.transform.position;
+            originalRotation = posidoniaObject.transform.rotation;
         }
-        if (infoCard != null)
+    }
+
+    void Update()
+    {
+        if (autoCloseEnabled && infoCard != null && infoCard.activeSelf)
         {
-            infoCard.SetActive(false); // caché au démarrage
-        }
-        // Connecte automatiquement le bouton Fermer à Hide()
-        if (closeButton != null)
-        {
-            closeButton.onClick.AddListener(Hide);
+            autoCloseTimer -= Time.deltaTime;
+            if (autoCloseTimer <= 0f)
+            {
+                Debug.Log("Auto-close triggered after timeout.");
+                Hide();
+            }
         }
     }
 
@@ -41,55 +69,62 @@ public class ShowInfoCard : MonoBehaviour
     {
         if (faceCamera && infoCard != null && infoCard.activeSelf && cam != null)
         {
-            infoCard.transform.LookAt(infoCard.transform.position + cam.forward);
+            Vector3 directionAwayFromCamera = infoCard.transform.position - cam.position;
+            if (directionAwayFromCamera.sqrMagnitude > 0.0001f)
+            {
+                infoCard.transform.rotation = Quaternion.LookRotation(directionAwayFromCamera);
+            }
         }
     }
 
     public void Show()
     {
-        Debug.Log("GRAB detected - Show() called !");
-        if (infoCard != null)
+        if (infoCard != null) infoCard.SetActive(true);
+        SetPosidoniaVisible(false);
+        SetIndicatorVisible(false);
+        autoCloseTimer = autoCloseDelay;
+    }
+
+    public void Hide()
+    {
+        if (infoCard != null) infoCard.SetActive(false);
+        if (posidoniaObject != null)
         {
-            infoCard.SetActive(true);
-            Debug.Log("Infocard active !");
+            posidoniaObject.transform.position = originalPosition;
+            posidoniaObject.transform.rotation = originalRotation;
+            if (posidoniaRigidbody != null)
+            {
+                posidoniaRigidbody.velocity = Vector3.zero;
+                posidoniaRigidbody.angularVelocity = Vector3.zero;
+            }
+        }
+        SetPosidoniaVisible(true);
+        SetIndicatorVisible(true);
+    }
+
+    private void SetPosidoniaVisible(bool visible)
+    {
+        if (posidoniaRenderers != null)
+            foreach (var r in posidoniaRenderers)
+                if (r != null) r.enabled = visible;
+        if (posidoniaColliders != null)
+            foreach (var c in posidoniaColliders)
+                if (c != null) c.enabled = visible;
+    }
+
+    private void SetIndicatorVisible(bool visible)
+    {
+        if (indicatorParticles == null) return;
+
+        if (visible)
+        {
+            indicatorParticles.gameObject.SetActive(true);
+            indicatorParticles.Play(true); // true = include children
         }
         else
         {
-            Debug.LogWarning("infoCard is not assigned in the Inspector !");
-        }
-
-        // Hide the posidonia object while the card is up
-        if (posidoniaObject != null)
-        {
-            posidoniaObject.SetActive(false);
-        }
-    }
-
-    public void Hide() // <-- THIS makes the popup disappear
-    {
-        Debug.Log("Hide() called - Hide detected");
-        if (infoCard != null)
-        {
-            infoCard.SetActive(false); // <-- popup hidden here
-        }
-
-        // Show the posidonia object again once the card is closed
-        if (posidoniaObject != null)
-        {
-            posidoniaObject.SetActive(true);
-        }
-    }
-
-    void OnMouseDown()
-    {
-        Debug.Log("Standard mouse click detected!");
-        if (infoCard != null && !infoCard.activeSelf)
-        {
-            Show();
-        }
-        else if (infoCard != null && infoCard.activeSelf)
-        {
-            Hide();
+            // Stop emitting AND clear existing particles instantly
+            indicatorParticles.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
         }
     }
 }
