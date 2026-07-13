@@ -27,7 +27,7 @@ public class ShowInfoCard : MonoBehaviour
     [SerializeField]
     private bool autoCloseEnabled = true;
     [SerializeField]
-    private float autoCloseDelay = 8f; // seconds
+    private float autoCloseDelay = 5f; // seconds
     private float autoCloseTimer;
 
     private Renderer[] posidoniaRenderers;
