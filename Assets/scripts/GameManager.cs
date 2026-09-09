@@ -62,14 +62,17 @@ public class GameManager : MonoBehaviour
 
         currentAir -= Time.deltaTime;
 
-        if (hud != null)
-            hud.UpdateTime(currentAir);
-
         if (currentAir <= 0)
         {
             currentAir = 0;
+        }
+
+        if (hud != null)
+            hud.UpdateTime(currentAir);
+
+        if (currentAir <= 0 && !airDepleted)
+        {
             airDepleted = true;
-            Debug.Log("AIR DEPLETED - locking movement now");
             OnAirDepleted();
         }
     }
