@@ -13,7 +13,17 @@ public class GameManager : MonoBehaviour
     public TextMeshProUGUI scoreText; // Drag your on-screen score text here (optional)
     public GameObject winPopupPanel;  // Drag your finished info-card / thank-you Panel here (keep it disabled by default)
 
+    [Header("Air Timer Settings")]
+    public float airDuration = 90f;       // seconds of air per tank
+    private float currentAir;
+    private bool airDepleted = false;
+    public GameObject airWarningPanel;    // your "refill air" card (separate from winPopupPanel, keep disabled by default)
+    public PlayerMovement playerMovement; // drag the GameObject holding your locomotion script here
+
     private PopupFollowPlayer popupFollowScript;
+    private PopupFollowPlayer airWarningFollowScript;
+
+    private GameHUB hud;
 
     void Awake()
     {
@@ -26,6 +36,7 @@ public class GameManager : MonoBehaviour
         {
             Destroy(gameObject);
         }
+        hud = FindObjectOfType<GameHUB>();
     }
 
     void Start()
@@ -36,6 +47,68 @@ public class GameManager : MonoBehaviour
             popupFollowScript = winPopupPanel.GetComponentInParent<PopupFollowPlayer>();
             winPopupPanel.SetActive(false);
         }
+        if (airWarningPanel != null)
+        {
+            airWarningFollowScript = airWarningPanel.GetComponentInParent<PopupFollowPlayer>();
+            //airWarningPanel.SetActive(false);
+        }
+
+        currentAir = airDuration;
+    }
+
+    void Update()
+    {
+        if (airDepleted) return;
+
+        currentAir -= Time.deltaTime;
+
+        if (hud != null)
+            hud.UpdateTime(currentAir);
+
+        if (currentAir <= 0)
+        {
+            currentAir = 0;
+            airDepleted = true;
+            Debug.Log("AIR DEPLETED - locking movement now");
+            OnAirDepleted();
+        }
+    }
+
+    void OnAirDepleted()
+    {
+        Debug.Log("playerMovement is " + (playerMovement == null ? "NULL" : "assigned"));
+
+        if (playerMovement != null)
+        {
+            Debug.Log("Calling canMove = false");
+            playerMovement.canMove = false;
+        }
+        else
+        {
+            Debug.Log("playerMovement is NULL");
+        }
+
+        if (airWarningPanel != null)
+        {
+            airWarningPanel.SetActive(true);
+
+            if (airWarningFollowScript != null)
+                airWarningFollowScript.PlaceInFrontOfPlayer();
+        }
+    }
+
+    // Hook this to the air-warning card's OK button (OnClick)
+    public void OnAirRefillConfirmed()
+    {
+        Debug.Log("Refill confirmed");
+        if (airWarningPanel != null)
+            airWarningPanel.SetActive(false);
+
+        currentAir = airDuration;
+        airDepleted = false;
+
+        if (playerMovement != null)
+            playerMovement.canMove = true;
     }
 
     public void CollectItem()
