@@ -38,7 +38,11 @@ public class ShowInfoCard : MonoBehaviour
     private bool autoCloseEnabled = true;
     [Tooltip("Utilisé seulement si ListenForVoiceEnd n'a pas été appelé (pas de voix assignée).")]
     [SerializeField]
+<<<<<<< Updated upstream
+    private float autoCloseDelay = 5f; // seconds
+=======
     private float autoCloseDelay = 3f; // seconds
+>>>>>>> Stashed changes
     private float autoCloseTimer;
 
     // Set at runtime via ListenForVoiceEnd(), called from the Select() event list.
