@@ -17,18 +17,37 @@ public class ShowInfoCard : MonoBehaviour
     [Header("Billboard (optionnel)")]
     [SerializeField]
     private bool faceCamera = true;
+    [Tooltip("Limite l'inclinaison verticale (axe X) en degrés, dans les deux sens.")]
+    [SerializeField]
+    private float maxPitchAngle = 60f;
+    [Tooltip("Empêche la carte de se déplacer (utile si l'objet parent bouge, ex: quand on l'attrape). Optionnel: assigner un Transform fixe, sinon la position de départ de la carte est utilisée.")]
+    [SerializeField]
+    private bool lockPosition = true;
+    [SerializeField]
+    private Transform positionAnchor; // optional - if empty, uses the card's own starting position
     private Transform cam;
+    private float initialYRotation; // Y rotation is frozen; only X (pitch) is allowed to move
+    private Vector3 initialInfoCardPosition;
 
     [Header("Bouton Fermer (optionnel)")]
     [SerializeField]
     private Button closeButton;
 
-    [Header("Fermeture automatique (optionnel)")]
+    [Header("Fermeture automatique")]
     [SerializeField]
     private bool autoCloseEnabled = true;
+    [Tooltip("Utilisé seulement si ListenForVoiceEnd n'a pas été appelé (pas de voix assignée).")]
     [SerializeField]
+<<<<<<< Updated upstream
     private float autoCloseDelay = 5f; // seconds
+=======
+    private float autoCloseDelay = 3f; // seconds
+>>>>>>> Stashed changes
     private float autoCloseTimer;
+
+    // Set at runtime via ListenForVoiceEnd(), called from the Select() event list.
+    private AudioSource activeVoiceSource;
+    private bool waitingForVoiceToStart;
 
     private Renderer[] posidoniaRenderers;
     private Collider[] posidoniaColliders;
@@ -42,6 +61,12 @@ public class ShowInfoCard : MonoBehaviour
         if (infoCard != null) infoCard.SetActive(false);
         if (closeButton != null) closeButton.onClick.AddListener(Hide);
 
+        if (infoCard != null)
+        {
+            initialYRotation = infoCard.transform.eulerAngles.y;
+            initialInfoCardPosition = infoCard.transform.position;
+        }
+
         if (posidoniaObject != null)
         {
             posidoniaRenderers = posidoniaObject.GetComponentsInChildren<Renderer>(true);
@@ -54,8 +79,24 @@ public class ShowInfoCard : MonoBehaviour
 
     void Update()
     {
-        if (autoCloseEnabled && infoCard != null && infoCard.activeSelf)
+        if (!autoCloseEnabled || infoCard == null || !infoCard.activeSelf) return;
+
+        if (activeVoiceSource != null)
         {
+            // Wait for the voice clip to actually start, then close as soon as it stops.
+            if (activeVoiceSource.isPlaying)
+            {
+                waitingForVoiceToStart = false;
+            }
+            else if (!waitingForVoiceToStart)
+            {
+                Debug.Log("Voice clip finished, auto-closing info card.");
+                Hide();
+            }
+        }
+        else
+        {
+            // Fallback: fixed timer, used only if no voice source was registered this time.
             autoCloseTimer -= Time.deltaTime;
             if (autoCloseTimer <= 0f)
             {
@@ -67,12 +108,32 @@ public class ShowInfoCard : MonoBehaviour
 
     void LateUpdate()
     {
-        if (faceCamera && infoCard != null && infoCard.activeSelf && cam != null)
+        if (infoCard == null || !infoCard.activeSelf) return;
+
+        // Pin the card's world position so it can't drift/fly if a parent
+        // object (e.g. the thing being grabbed) moves underneath it.
+        if (lockPosition)
         {
-            Vector3 directionAwayFromCamera = infoCard.transform.position - cam.position;
-            if (directionAwayFromCamera.sqrMagnitude > 0.0001f)
+            Vector3 targetPos = positionAnchor != null ? positionAnchor.position : initialInfoCardPosition;
+            infoCard.transform.position = targetPos;
+        }
+
+        if (faceCamera && cam != null)
+        {
+            Vector3 toCamera = cam.position - infoCard.transform.position;
+            float horizontalDist = Mathf.Sqrt(toCamera.x * toCamera.x + toCamera.z * toCamera.z);
+
+            if (horizontalDist > 0.0001f || Mathf.Abs(toCamera.y) > 0.0001f)
             {
-                infoCard.transform.rotation = Quaternion.LookRotation(directionAwayFromCamera);
+                // Compute pitch directly via trigonometry instead of decomposing a
+                // Quaternion.LookRotation - this avoids the erratic flips/jumps that
+                // happen with eulerAngles extraction when the camera gets close to
+                // directly above/below the card (near-vertical direction).
+                float pitch = -Mathf.Atan2(toCamera.y, horizontalDist) * Mathf.Rad2Deg;
+                pitch = Mathf.Clamp(pitch, -maxPitchAngle, maxPitchAngle);
+
+                // Keep Y fixed (no left/right rotation), only apply X (up/down tilt)
+                infoCard.transform.rotation = Quaternion.Euler(pitch, initialYRotation, 0f);
             }
         }
     }
@@ -83,6 +144,20 @@ public class ShowInfoCard : MonoBehaviour
         SetPosidoniaVisible(false);
         SetIndicatorVisible(false);
         autoCloseTimer = autoCloseDelay;
+
+        // Reset - if this Show() call isn't followed by a ListenForVoiceEnd() call,
+        // we fall back to the fixed timer above.
+        activeVoiceSource = null;
+        waitingForVoiceToStart = false;
+    }
+
+    // Call this from the SAME When Select() event list, right after AudioSource.Play,
+    // passing that same voice AudioSource. Works for any number of cards/objects
+    // without touching this component's own Inspector fields.
+    public void ListenForVoiceEnd(AudioSource source)
+    {
+        activeVoiceSource = source;
+        waitingForVoiceToStart = source != null;
     }
 
     public void Hide()
@@ -100,6 +175,7 @@ public class ShowInfoCard : MonoBehaviour
         }
         SetPosidoniaVisible(true);
         SetIndicatorVisible(true);
+        activeVoiceSource = null;
     }
 
     private void SetPosidoniaVisible(bool visible)

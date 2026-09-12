@@ -21,7 +21,18 @@ public class GameManager : MonoBehaviour
 
     [Header("Popup Audio")]
     public AudioSource popupAudioSource; // Drag an AudioSource component here
+<<<<<<< Updated upstream
     public AudioClip popupVoiceClip;     // Drag your narration/voice clip here
+=======
+    public AudioClip popupVoiceClip;     // Drag your winning sound/narration clip here
+
+    [Header("Air Timer Settings")]
+    public float airDuration = 900f;       // seconds of air per tank
+    private float currentAir;
+    private bool airDepleted = false;
+    public GameObject airWarningPanel;    // your "refill air" card (separate from winPopupPanel, keep disabled by default)
+    public PlayerMovement playerMovement; // drag the GameObject holding your locomotion script here
+>>>>>>> Stashed changes
 
     private PopupFollowPlayer popupFollowScript;
 
@@ -46,6 +57,66 @@ public class GameManager : MonoBehaviour
             popupFollowScript = winPopupPanel.GetComponentInParent<PopupFollowPlayer>();
             winPopupPanel.SetActive(false);
         }
+<<<<<<< Updated upstream
+=======
+        if (airWarningPanel != null)
+        {
+            airWarningFollowScript = airWarningPanel.GetComponentInParent<PopupFollowPlayer>();
+            //airWarningPanel.SetActive(false);
+        }
+
+        currentAir = airDuration;
+    }
+
+    void Update()
+    {
+        if (airDepleted) return;
+
+        currentAir -= Time.deltaTime;
+
+        if (currentAir <= 0)
+        {
+            currentAir = 0;
+        }
+
+        if (hud != null)
+            hud.UpdateTime(currentAir);
+
+        if (currentAir <= 0 && !airDepleted)
+        {
+            airDepleted = true;
+            OnAirDepleted();
+        }
+    }
+
+    void OnAirDepleted()
+    {
+        if (playerMovement != null)
+        {
+            playerMovement.canMove = false;
+        }
+
+        if (airWarningPanel != null)
+        {
+            airWarningPanel.SetActive(true);
+
+            if (airWarningFollowScript != null)
+                airWarningFollowScript.PlaceInFrontOfPlayer();
+        }
+    }
+
+    // Hook this to the air-warning card's OK button (OnClick)
+    public void OnAirRefillConfirmed()
+    {
+        if (airWarningPanel != null)
+            airWarningPanel.SetActive(false);
+
+        currentAir = airDuration;
+        airDepleted = false;
+
+        if (playerMovement != null)
+            playerMovement.canMove = true;
+>>>>>>> Stashed changes
     }
 
     public void CollectItem()
